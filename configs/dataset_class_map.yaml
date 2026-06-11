@@ -1,0 +1,93 @@
+# Per-dataset class-name decisions for the merge step.
+# Map each class to `stamp` (kept, merged into the single detection class)
+# or `DROP` (annotations discarded). Unmapped classes abort the merge.
+# Verified visually: shape classes (circle/oval/rectangle/triangle/word) and the
+# numeric classes in stamp-vjgc2 are all genuine stamps.
+
+hrsdyolo__stamp-yctn7:
+  stamp: stamp
+
+stampa__stamp-detection-4jhgg:
+  stamp: stamp
+  signature: DROP
+
+swp-3jks1__stamp-one-class:
+  stamp: stamp
+
+swp-3jks1__stamp-shape:
+  circle: stamp
+  oval: stamp
+  rectangle: stamp
+  triangle: stamp
+  word: stamp
+
+# 60 per-identity classes (stamp1..stamp60) — all stamps
+swp-3jks1__stamp-hmqhd:
+  stamp1: stamp
+  stamp2: stamp
+  stamp3: stamp
+  stamp4: stamp
+  stamp5: stamp
+  stamp6: stamp
+  stamp7: stamp
+  stamp8: stamp
+  stamp9: stamp
+  stamp10: stamp
+  stamp11: stamp
+  stamp12: stamp
+  stamp13: stamp
+  stamp14: stamp
+  stamp15: stamp
+  stamp16: stamp
+  stamp17: stamp
+  stamp18: stamp
+  stamp19: stamp
+  stamp20: stamp
+  stamp21: stamp
+  stamp22: stamp
+  stamp23: stamp
+  stamp24: stamp
+  stamp25: stamp
+  stamp26: stamp
+  stamp27: stamp
+  stamp28: stamp
+  stamp29: stamp
+  stamp30: stamp
+  stamp31: stamp
+  stamp32: stamp
+  stamp33: stamp
+  stamp34: stamp
+  stamp35: stamp
+  stamp36: stamp
+  stamp37: stamp
+  stamp38: stamp
+  stamp39: stamp
+  stamp40: stamp
+  stamp41: stamp
+  stamp42: stamp
+  stamp43: stamp
+  stamp44: stamp
+  stamp45: stamp
+  stamp46: stamp
+  stamp47: stamp
+  stamp48: stamp
+  stamp49: stamp
+  stamp50: stamp
+  stamp51: stamp
+  stamp52: stamp
+  stamp53: stamp
+  stamp54: stamp
+  stamp55: stamp
+  stamp56: stamp
+  stamp57: stamp
+  stamp58: stamp
+  stamp59: stamp
+  stamp60: stamp
+
+# numeric class names must stay strings
+zeinab-nh6s4__stamp-vjgc2:
+  "0": stamp
+  "1": stamp
+  "2": stamp
+  "3": stamp
+  "4": stamp

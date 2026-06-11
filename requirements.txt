@@ -1,0 +1,18 @@
+# Install PyTorch first for your CUDA version, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+torch>=2.4
+torchvision
+
+transformers>=4.49        # RT-DETRv2 support (developed against 5.1)
+accelerate
+albumentations>=2.0
+pycocotools
+optuna>=3.6
+wandb
+roboflow
+onnx
+onnxruntime-gpu           # use onnxruntime on CPU-only machines
+pyyaml
+python-dotenv
+Pillow
+numpy

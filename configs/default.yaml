@@ -1,0 +1,54 @@
+# Single source of truth for all scripts. Override anything on the CLI:
+#   python scripts/train.py --set train.lr=5e-5 aug.strength=0.8
+# Full schema and defaults: stamp_detection/config.py
+
+data:
+  raw_dir: datasets/raw
+  processed_dir: datasets/processed
+  image_size: 640
+  train_fraction: 0.8
+  val_fraction: 0.1            # test gets the remainder (0.1)
+  negative_keep_ratio: 0.1     # cap on annotation-free images vs positives
+  dedup_dhash_threshold: 3
+  seed: 42
+
+model:
+  checkpoint: PekingU/rtdetr_v2_r50vd   # RT-DETRv2-L
+  num_labels: 1
+  freeze_backbone: false
+
+train:
+  lr: 1.0e-4
+  backbone_lr_mult: 0.1        # backbone trains at lr * mult (DETR recipe)
+  weight_decay: 1.0e-4
+  epochs: 72
+  batch_size: 8
+  grad_accum: 2                # effective batch 16
+  eval_batch_size: 16
+  warmup_ratio: 0.05
+  lr_scheduler: cosine
+  max_grad_norm: 0.1           # RT-DETR clips at 0.1, not 1.0
+  bf16: true
+  early_stopping_patience: 10
+  metric_for_best: eval_map
+  num_workers: 8
+  output_dir: runs
+
+aug:
+  strength: 0.5                # global magnitude scale in [0, 1]
+  hflip_p: 0.0                 # stamps contain text; see README before enabling
+
+wandb:
+  enabled: true
+  entity: aiaccount
+  project: stamp-detection
+  n_val_images: 16
+  image_log_threshold: 0.3
+
+hpo:
+  study_name: stamp-rtdetrv2
+  storage: sqlite:///runs/hpo.db
+  n_trials: 30
+  trial_epochs: 10
+  max_train_samples: 3000      # subsample for faster trials; null = full set
+  pruner: asha
