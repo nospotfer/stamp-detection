@@ -5,6 +5,8 @@ torchvision
 
 transformers>=4.49        # RT-DETRv2 support (developed against 5.1)
 accelerate
+datasets                  # required: without it, the repo's datasets/ dir shadows
+                          # the HF lib as a namespace package and Trainer crashes
 albumentations>=2.0
 pycocotools
 optuna>=3.6
