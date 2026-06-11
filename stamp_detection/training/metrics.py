@@ -49,7 +49,8 @@ def build_compute_metrics(image_processor, threshold: float = 0.01):
             )
 
             for target, result in zip(batch_labels, results):
-                image_id = int(target["image_id"])
+                # scalar under transformers 5.1, 1-element array under 5.11
+                image_id = int(np.asarray(target["image_id"]).reshape(-1)[0])
                 h, w = (int(v) for v in target["orig_size"])
                 gt_images.append({"id": image_id, "width": w, "height": h})
                 # boxes in targets are normalized cxcywh on the resized image;
