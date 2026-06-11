@@ -27,6 +27,10 @@ class DataConfig:
     # test fraction is the remainder
     negative_keep_ratio: float = 0.1
     dedup_dhash_threshold: int = 3
+    # Roboflow exports bake augmented copies (rotation/flip/noise) of each
+    # original into the train split. False (default) keeps one canonical copy
+    # per original; True keeps them all but splits group-aware (no leakage).
+    keep_baked_augmentations: bool = False
     seed: int = 42
     max_train_samples: int | None = None
     max_eval_samples: int | None = None

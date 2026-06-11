@@ -15,6 +15,8 @@ documents. See README.md for the full workflow.
 
 ```bash
 conda run -n optipix python scripts/prepare_data.py              # download + merge
+conda run -n optipix python scripts/import_local_dataset.py --path <dir>  # local YOLO export -> raw/
+conda run -n optipix python scripts/visualize_dataset.py         # GT preview sheets per source
 conda run -n optipix python scripts/train.py                     # full training
 conda run -n optipix python scripts/hpo.py                       # Optuna search
 conda run -n optipix python scripts/evaluate.py    --checkpoint runs/<run>/best --split test

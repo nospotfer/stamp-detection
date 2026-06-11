@@ -10,6 +10,7 @@ data:
   val_fraction: 0.1            # test gets the remainder (0.1)
   negative_keep_ratio: 0.1     # cap on annotation-free images vs positives
   dedup_dhash_threshold: 3
+  keep_baked_augmentations: false  # drop Roboflow's baked-in augmented copies
   seed: 42
 
 model:

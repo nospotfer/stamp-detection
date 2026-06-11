@@ -2,7 +2,9 @@
 
 Steps: ingest all raw splits -> remap classes (subclasses of stamp -> "stamp",
 other classes dropped) -> sanitize boxes -> dedup (sha256 exact + dHash near-dup)
--> cap negatives -> deterministic re-split -> emit processed/{train,val,test}.
+-> drop baked-in Roboflow augmented copies (keep one canonical copy per original)
+-> cap negatives -> deterministic group-aware re-split -> emit
+processed/{train,val,test}.
 
 Class mapping lives in configs/dataset_class_map.yaml:
 
@@ -20,6 +22,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -48,6 +51,32 @@ class Record:
     boxes: list[list[float]] = field(default_factory=list)  # xywh abs
     sha256: str = ""
     dhash: int = 0
+    group: str = ""  # source + Roboflow original-image stem (pre-.rf. hash)
+    raw_split: str = ""  # split dir in the raw export (train/valid/test)
+    black_frac: float = 0.0  # black-corner fraction; >0 hints baked-in rotation
+
+
+_RF_STEM = re.compile(r"_(jpe?g|png|bmp|webp)\.rf\.[0-9a-f]+.*$", re.IGNORECASE)
+
+
+def _group_key(source: str, file_name: str) -> str:
+    """All baked-in augmented copies of one original share this key."""
+    return f"{source}/{_RF_STEM.sub('', file_name)}"
+
+
+def _black_corner_fraction(image: Image.Image) -> float:
+    """Fraction of near-black pixels in the four corners: Roboflow's baked
+    rotations fill borders with black, real scans are white paper."""
+    import numpy as np
+
+    gray = np.asarray(image.convert("L"))
+    h, w = gray.shape
+    ch, cw = max(1, h // 10), max(1, w // 10)
+    corners = np.concatenate([
+        gray[:ch, :cw].ravel(), gray[:ch, -cw:].ravel(),
+        gray[-ch:, :cw].ravel(), gray[-ch:, -cw:].ravel(),
+    ])
+    return float((corners < 10).mean())
 
 
 def _load_class_map(path: str | Path) -> dict[str, dict[str, str]]:
@@ -96,7 +125,11 @@ def _ingest_source(source_dir: Path, class_map: dict[str, str] | None,
                         or (x2 - x1) * (y2 - y1) < MIN_BOX_AREA:
                     continue
                 boxes.append([x1, y1, x2 - x1, y2 - y1])
-            records.append(Record(source=slug, path=img_path, width=w, height=h, boxes=boxes))
+            records.append(Record(
+                source=slug, path=img_path, width=w, height=h, boxes=boxes,
+                group=_group_key(slug, img["file_name"]),
+                raw_split=ann_file.parent.name,
+            ))
     return records
 
 
@@ -109,6 +142,7 @@ def _dedup(records: list[Record], dhash_threshold: int) -> tuple[list[Record], d
         r.sha256 = sha256_file(r.path)
         with Image.open(r.path) as im:
             r.dhash = dhash(im)
+            r.black_frac = _black_corner_fraction(im)
 
     def better(a: Record, b: Record) -> Record:
         ka = (len(a.boxes), a.width * a.height)
@@ -154,19 +188,53 @@ def _dedup(records: list[Record], dhash_threshold: int) -> tuple[list[Record], d
     return kept, report
 
 
+def _select_canonical(records: list[Record]) -> tuple[list[Record], int]:
+    """Keep one copy per original image (Roboflow bakes augmented copies of
+    each train image into its exports). Prefer copies from the raw valid/test
+    splits (never augmented), then the least black-corner rotation artifacts,
+    then most annotations, then resolution."""
+    by_group = defaultdict(list)
+    for r in records:
+        by_group[r.group].append(r)
+
+    def rank(r: Record):
+        return (
+            0 if r.raw_split in ("valid", "test") else 1,
+            round(r.black_frac, 3),
+            -len(r.boxes),
+            -(r.width * r.height),
+            r.sha256,  # deterministic tie-break
+        )
+
+    kept = [min(group, key=rank) for group in by_group.values()]
+    return kept, len(records) - len(kept)
+
+
 def _split(records: list[Record], cfg: DataConfig) -> dict[str, list[Record]]:
-    """Deterministic split after dedup: shuffle by seed over sha256-sorted records."""
-    ordered = sorted(records, key=lambda r: r.sha256)
+    """Deterministic split after dedup. Group-aware: all baked-in augmented
+    copies of one original land in the same split, so re-splitting can never
+    leak a rotated/flipped sibling of a train image into val or test."""
+    by_group = defaultdict(list)
+    for r in records:
+        by_group[r.group].append(r)
+    group_keys = sorted(by_group)
     rng = random.Random(cfg.seed)
-    rng.shuffle(ordered)
-    n = len(ordered)
-    n_train = round(n * cfg.train_fraction)
-    n_val = round(n * cfg.val_fraction)
-    return {
-        "train": ordered[:n_train],
-        "val": ordered[n_train:n_train + n_val],
-        "test": ordered[n_train + n_val:],
-    }
+    rng.shuffle(group_keys)
+
+    n = len(records)
+    cut_train, cut_val = n * cfg.train_fraction, n * (cfg.train_fraction + cfg.val_fraction)
+    splits: dict[str, list[Record]] = {"train": [], "val": [], "test": []}
+    assigned = 0
+    for key in group_keys:
+        group = by_group[key]
+        if assigned < cut_train:
+            splits["train"].extend(group)
+        elif assigned < cut_val:
+            splits["val"].extend(group)
+        else:
+            splits["test"].extend(group)
+        assigned += len(group)
+    return splits
 
 
 def _emit_split(split: str, records: list[Record], out_root: Path) -> dict:
@@ -233,6 +301,12 @@ def merge(cfg: DataConfig) -> bool:
           f"{dedup_report['near_duplicates_removed']} near dups removed)")
     for pair, n in dedup_report["near_dup_source_pairs"].items():
         print(f"    {pair}: {n}")
+
+    if not cfg.keep_baked_augmentations:
+        deduped, n_baked = _select_canonical(deduped)
+        dedup_report["baked_augmented_copies_removed"] = n_baked
+        print(f"[merge] baked-in augmented copies: removed {n_baked}, "
+              f"kept {len(deduped)} canonical originals")
 
     # cap annotation-free negatives (real "no stamp on invoice" case, but don't flood)
     positives = [r for r in deduped if r.boxes]

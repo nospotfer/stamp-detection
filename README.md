@@ -55,13 +55,37 @@ merges them into `datasets/processed/{train,val,test}` with a single category,
 2. **Sanitizes** boxes (clipped to image bounds, degenerate boxes removed).
 3. **Deduplicates** across datasets — exact (SHA-256) plus near-duplicate (dHash)
    matching, since several candidate datasets are forks of the same images.
-4. **Caps negatives**: images without stamps are kept (real "invoice without
+4. **Drops baked-in augmented copies**: Roboflow exports bake train-time
+   augmentations (rotations with black fill, flips, noise) into the images,
+   with up to 18 copies of the same document. Only one canonical copy per
+   original is kept (preferring un-augmented ones, detected via the `.rf.`
+   filename stem and black-corner heuristics); we re-apply better augmentations
+   at train time instead. Set `data.keep_baked_augmentations=true` to keep them.
+5. **Caps negatives**: images without stamps are kept (real "invoice without
    stamp" case) but limited to `data.negative_keep_ratio` of the positives.
-5. **Re-splits** 80/10/10 deterministically *after* dedup, so no near-identical
-   image can land in both train and test.
+6. **Re-splits** 80/10/10 deterministically *after* dedup and group-aware (all
+   copies of one original stay in the same split), so no duplicate or augmented
+   sibling of a train image can leak into val or test.
 
 A `merge_report.json` with per-source/dedup/split statistics is written to
 `datasets/processed/`.
+
+**Local datasets** (e.g. an old Roboflow YOLO export on disk) can be unified
+into the same pipeline — the directory is *moved* under `datasets/raw/` and its
+labels converted to COCO, after which the merge treats it like any other source:
+
+```bash
+python scripts/import_local_dataset.py --path ~/datasets/my_yolo_export
+# add the printed slug to configs/dataset_class_map.yaml, then:
+python scripts/prepare_data.py --skip-download
+```
+
+**Inspecting the result**: render ground-truth samples grouped per source
+dataset (one contact sheet each under `datasets/processed/preview/`):
+
+```bash
+python scripts/visualize_dataset.py --per-source 8
+```
 
 ## 2. Train
 

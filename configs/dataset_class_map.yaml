@@ -7,6 +7,10 @@
 hrsdyolo__stamp-yctn7:
   stamp: stamp
 
+# imported locally via scripts/import_local_dataset.py (YOLO v8 export)
+jsam__stamp-detection-okgih:
+  stamp: stamp
+
 stampa__stamp-detection-4jhgg:
   stamp: stamp
   signature: DROP
