@@ -31,7 +31,7 @@ def setup_wandb(cfg: ExperimentConfig, run_name: str | None = None) -> None:
 
 
 def run_training(cfg: ExperimentConfig, extra_callbacks: list | None = None,
-                 run_name: str | None = None) -> dict:
+                 run_name: str | None = None, eval_test: bool = True) -> dict:
     """Train RT-DETRv2 with the given config; returns final eval metrics.
 
     The best checkpoint (by cfg.train.metric_for_best) is loaded at the end and
@@ -126,12 +126,25 @@ def run_training(cfg: ExperimentConfig, extra_callbacks: list | None = None,
 
     metrics = trainer.evaluate()
 
+    # test-set metrics on the best model, logged to the same wandb run (test/*)
+    test_dir = processed / "test"
+    if eval_test and test_dir.exists():
+        test_ds = CocoStampDataset(
+            test_dir,
+            build_eval_transforms(cfg.aug, cfg.data.image_size),
+            image_processor,
+            max_samples=cfg.data.max_eval_samples,
+        )
+        test_metrics = trainer.evaluate(eval_dataset=test_ds, metric_key_prefix="test")
+        metrics.update(test_metrics)
+
     best_dir = output_dir / "best"
     trainer.save_model(str(best_dir))
     image_processor.save_pretrained(str(best_dir))
     print(f"[train] best model saved to {best_dir}")
     print(f"[train] final metrics: " +
-          ", ".join(f"{k}={v:.4f}" for k, v in metrics.items() if k.startswith("eval_ma")))
+          ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()
+                    if k.startswith(("eval_ma", "test_ma"))))
 
     if cfg.wandb.enabled:
         import wandb

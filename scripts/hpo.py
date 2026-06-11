@@ -51,7 +51,9 @@ def make_objective(base_cfg):
         pruning_cb = OptunaPruningCallback(trial, metric=cfg.train.metric_for_best)
         run_name = f"hpo-{cfg.hpo.study_name}-t{trial.number:03d}"
         cfg.train.run_name = run_name
-        metrics = run_training(cfg, extra_callbacks=[pruning_cb], run_name=run_name)
+        # never evaluate on test during HPO: model selection must not see it
+        metrics = run_training(cfg, extra_callbacks=[pruning_cb], run_name=run_name,
+                               eval_test=False)
         if pruning_cb.pruned:
             raise optuna.TrialPruned()
         return metrics[cfg.train.metric_for_best]
