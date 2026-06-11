@@ -46,7 +46,9 @@ class CocoStampDataset(Dataset):
         item = self.items[idx]
         img_info = item["image"]
         with Image.open(self.split_dir / img_info["file_name"]) as im:
-            image = np.asarray(im.convert("RGB"))
+            # np.array (not asarray): a writable copy, else torch.from_numpy
+            # warns about read-only arrays in every dataloader worker
+            image = np.array(im.convert("RGB"))
 
         bboxes = [a["bbox"] for a in item["annotations"]]
         category_ids = [a["category_id"] for a in item["annotations"]]
